@@ -204,17 +204,21 @@ function wrapCreate (create) {
 
       if (typeof apiPromise.asResponse === 'function') {
         shimmer.wrap(apiPromise, 'asResponse', origAsResponse => function (...asResponseArgs) {
-          return heldUntil(origAsResponse.apply(this, asResponseArgs), interceptCtx?.beforeResult?.())
+          let rawResponse
+          let responseResult = origAsResponse.apply(this, asResponseArgs)
+          if (stream && interceptCtx?.onResult) {
+            responseResult = responseResult.then(response => {
+              rawResponse = response.clone()
+              return response
+            })
+          }
+
+          return heldUntil(responseResult, interceptCtx?.beforeResult?.())
             .then(response => {
               if (stream && interceptCtx?.onResult) {
-                // `messages.stream()` starts parse() before asResponse(); its parsed branch is delivered
-                // to the caller, so reusing it avoids buffering an unread clone of the raw body.
-                if (parseResult) return parseResult.then(() => response)
-
-                const rawResponse = response.clone()
-                // A direct asResponse() caller receives the raw copy only after the SDK has decoded
-                // and inspected the original body. No wrapped iterator will remain to finish this span.
-                return apiPromise.parse().then(() => {
+                // Direct asResponse() and withResponse() callers receive the raw copy only after
+                // the SDK has decoded and inspected the original body.
+                return (parseResult || apiPromise.parse()).then(() => {
                   finish(ctx)
                   return rawResponse
                 })

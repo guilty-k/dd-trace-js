@@ -529,7 +529,7 @@ withVersions('anthropic', '@anthropic-ai/sdk', '>=0.33.0', version => {
       }
     })
 
-    it('does not clone the raw response used internally by messages.stream()', async () => {
+    it('keeps messages.stream() readable', async () => {
       const { unsubscribe } = subscribeIntercept(ctx => {
         ctx.onResult = stream => stream
       })
@@ -558,7 +558,6 @@ withVersions('anthropic', '@anthropic-ai/sdk', '>=0.33.0', version => {
         { type: 'message_stop' },
       ]
       const { response } = sseResponse(events)
-      response.clone = () => { throw new Error('response should not be cloned') }
 
       try {
         const stream = clientReturning(response).messages.stream(createAnthropicRequest())
